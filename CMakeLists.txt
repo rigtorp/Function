@@ -3,4 +3,5 @@ project(Function)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-add_executable(Function Function.cpp)
+add_executable(example example.cpp)
+add_executable(benchmark benchmark.cpp)
