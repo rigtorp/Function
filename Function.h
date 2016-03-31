@@ -111,9 +111,9 @@ private:
   using Manager = void (*)(Storage *, Storage *, Operation);
 
   template <typename F>
-  static inline void invoke(Storage *data, Args &&... args) {
+  static R invoke(Storage *data, Args &&... args) {
     F &f = *static_cast<F *>(reinterpret_cast<void *>(data));
-    f(std::forward<Args>(args)...);
+    return f(std::forward<Args>(args)...);
   }
 
   template <typename F>
