@@ -27,9 +27,9 @@ SOFTWARE.
 #include <functional>
 #include <memory>
 
-template <class> class Function;
+template <class, size_t MaxSize = 1024> class Function;
 
-template <class R, class... Args> class Function<R(Args...)> {
+template <class R, class... Args, size_t MaxSize> class Function<R(Args...), MaxSize> {
 public:
   Function() noexcept {}
 
@@ -106,24 +106,24 @@ public:
 private:
   enum class Operation { Clone, Destroy };
 
-  using Storage = typename std::aligned_storage<1024, 8>::type;
-  using Invoker = R (*)(Storage *, Args &&...);
-  using Manager = void (*)(Storage *, Storage *, Operation);
+  using Invoker = R (*)(void *, Args &&...);
+  using Manager = void (*)(void *, void *, Operation);
+  using Storage = typename std::aligned_storage<MaxSize - sizeof(Invoker) - sizeof(Manager), 8>::type;
 
   template <typename F>
-  static inline void invoke(Storage *data, Args &&... args) {
-    F &f = *static_cast<F *>(reinterpret_cast<void *>(data));
-    f(std::forward<Args>(args)...);
+  static R invoke(void *data, Args &&... args) {
+    F &f = *static_cast<F *>(data);
+    return f(std::forward<Args>(args)...);
   }
 
   template <typename F>
-  static void manage(Storage *dest, Storage *src, Operation op) {
+  static void manage(void *dest, void *src, Operation op) {
     switch (op) {
     case Operation::Clone:
-      new (dest) F(*static_cast<F *>(reinterpret_cast<void *>(src)));
+      new (dest) F(*static_cast<F *>(src));
       break;
     case Operation::Destroy:
-      static_cast<F *>(reinterpret_cast<void *>(dest))->~F();
+      static_cast<F *>(dest)->~F();
       break;
     }
   }
