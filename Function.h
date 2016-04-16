@@ -46,11 +46,12 @@ public:
   Function(Function &&other) { other.swap(*this); }
 
   template <class F> Function(F &&f) {
-    static_assert(alignof(F) <= alignof(Storage), "invalid alignment");
-    static_assert(sizeof(F) <= sizeof(Storage), "storage too small");
-    new (&data) F(std::forward<F>(f));
-    invoker = &invoke<F>;
-    manager = &manage<F>;
+    using f_type = typename std::decay<F>::type;
+    static_assert(alignof(f_type) <= alignof(Storage), "invalid alignment");
+    static_assert(sizeof(f_type) <= sizeof(Storage), "storage too small");
+    new (&data) f_type(std::forward<F>(f));
+    invoker = &invoke<f_type>;
+    manager = &manage<f_type>;
   }
 
   ~Function() {
