@@ -72,7 +72,7 @@ public:
 
   Function &operator=(std::nullptr_t) {
     if (manager) {
-      manager(data, nullptr, Operation::Destroy);
+      manager(&data, nullptr, Operation::Destroy);
       manager = nullptr;
       invoker = nullptr;
     }

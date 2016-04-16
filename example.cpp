@@ -45,7 +45,11 @@ int main(int argc, char *argv[]) {
   f = cl;
   f(std::cout);
 
-  f(std::cout);
+  f = nullptr;
+  try { f(std::cout); }
+  catch (std::bad_function_call const&) { }
+  std::cout << "Assigned nullptr, function is " << (f? "not " : "") << "empty\n";
+
   std::cout << "Size of Function: " << sizeof(f) << '\n';
 
   return 0;
