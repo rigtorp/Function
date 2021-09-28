@@ -37,11 +37,13 @@ public:
 
   Function(const Function &other) {
     if (other) {
-      other.manager(data, other.data, Operation::Clone);
+      other.manager(const_cast<Storage*>(&data), const_cast<Storage*>(&other.data), Operation::Clone);
       invoker = other.invoker;
       manager = other.manager;
     }
   }
+
+  Function(Function& other) { other.swap(*this); }
 
   Function(Function &&other) { other.swap(*this); }
 
