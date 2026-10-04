@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: MIT
+name: CI
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+        standard: [11, 23]
+        include:
+          - compiler: clang++
+            standard: 23
+            sanitizers: true
+    env:
+      BUILD_TYPE: ${{ matrix.sanitizers && 'Debug' || 'Release' }}
+      CXX_FLAGS: ${{ matrix.sanitizers && '-fsanitize=address,undefined -fno-omit-frame-pointer' || '' }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+          -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+          -DCMAKE_CXX_FLAGS="$CXX_FLAGS"
+      - name: Build and test
+        run: |
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+      - name: Test add_subdirectory consumer
+        run: |
+          cmake -S tests/consumer -B build-consumer -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
+          cmake --build build-consumer --parallel 2
+          ctest --test-dir build-consumer --output-on-failure
+      - name: Install, relocate, and test find_package consumer
+        run: |
+          cmake --install build --prefix "$RUNNER_TEMP/function-prefix"
+          mv "$RUNNER_TEMP/function-prefix" "$RUNNER_TEMP/function-relocated"
+          cmake -S tests/consumer -B build-installed -DFUNCTION_TEST_INSTALLED=ON -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/function-relocated" -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
+          cmake --build build-installed --parallel 2
+          ctest --test-dir build-installed --output-on-failure

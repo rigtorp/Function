@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-#include "Function.h"
+#include <rigtorp/Function.h>
 #include <iostream>
 
 int function(std::ostream& os)
@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   int foo = 1;
   double bar = 3;
 
-  Function<int (std::ostream &), 128> f([=](std::ostream &os) {
+  rigtorp::Function<int (std::ostream &), 128> f([=](std::ostream &os) {
     os << "test " << foo << " " << bar << std::endl;
     return foo;
   });

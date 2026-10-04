@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-#include "Function.h"
+#include <rigtorp/Function.h>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -36,7 +36,7 @@ int main() {
   {
     auto start = steady_clock::now();
     for (size_t i = 0; i < count; ++i) {
-      Function<void()> fun = [&state, state2, i]() { state = i; };
+      rigtorp::Function<void()> fun = [&state, state2, i]() { state = i; };
       fun();
     }
     auto stop = steady_clock::now();
@@ -62,7 +62,7 @@ int main() {
   }
 
   {
-    Function<void(size_t)> fun([&state](size_t i) { state = i; });
+    rigtorp::Function<void(size_t)> fun([&state](size_t i) { state = i; });
     auto start = steady_clock::now();
     for (size_t i = 0; i < count; ++i) {
       fun(i);

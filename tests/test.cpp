@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-#include "Function.h"
+#include <rigtorp/Function.h>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
@@ -55,16 +55,47 @@ struct CheckedCopy {
 int CheckedCopy::alive = 0;
 int CheckedCopy::copiesBeforeThrow = -1;
 
+int functionTarget() { return 42; }
+int noexceptTarget() noexcept { return 43; }
+
+template <typename Pointer> void checkPointerTargets(Pointer pointer, int expected) {
+  rigtorp::Function<int()> function(pointer);
+  check(function() == expected);
+  Pointer null = nullptr;
+  rigtorp::Function<int()> empty(null);
+  check(!empty);
+  const rigtorp::Function<int()> &ref = empty;
+  rigtorp::Function<int()> copy(ref);
+  rigtorp::Function<int()> moved(std::move(empty));
+  check(!copy && !moved && !empty);
+  try {
+    moved();
+    std::abort();
+  } catch (const std::bad_function_call &) {}
+  function = null;
+  check(!function);
+  function = pointer;
+  check(function() == expected);
+}
+
 int main() {
+  checkPointerTargets(&functionTarget, 42);
+  checkPointerTargets(&noexceptTarget, 43);
+  static_assert(sizeof(rigtorp::Function<void()>) == 1024, "default wrapper size changed");
+  static_assert(sizeof(rigtorp::Function<void(), 128>) == 128, "wrapper size changed");
+  static_assert(alignof(rigtorp::Function<void()>) == 8, "wrapper alignment changed");
+  // A one-byte callable fits even at the minimum valid capacity.
+  rigtorp::Function<int(), 2 * sizeof(void (*)()) + 1> smallest([] { return 5; });
+  check(smallest() == 5);
   {
-    Function<bool()> original{Callable{}};
-    const Function<bool()> &ref = original;
-    Function<bool()> mutableCopy(original);
-    Function<bool()> constCopy(ref);
+    rigtorp::Function<bool()> original{Callable{}};
+    const rigtorp::Function<bool()> &ref = original;
+    rigtorp::Function<bool()> mutableCopy(original);
+    rigtorp::Function<bool()> constCopy(ref);
     check(original() && mutableCopy() && constCopy());
-    Function<bool()> moved(std::move(mutableCopy));
+    rigtorp::Function<bool()> moved(std::move(mutableCopy));
     check(moved() && !mutableCopy);
-    Function<bool()> assigned;
+    rigtorp::Function<bool()> assigned;
     assigned = ref;
     check(assigned());
     assigned = original;
@@ -73,7 +104,7 @@ int main() {
     check(assigned() && !moved);
     original.swap(assigned);
     check(original() && assigned());
-    Function<bool()> empty;
+    rigtorp::Function<bool()> empty;
     empty.swap(original);
     check(empty() && !original);
     original.swap(empty);
@@ -87,9 +118,9 @@ int main() {
     check(assigned());
     assigned = nullptr;
     check(!assigned);
-    const Function<bool()> &emptyRef = empty;
-    Function<bool()> emptyCopy(emptyRef);
-    Function<bool()> emptyMove(std::move(empty));
+    const rigtorp::Function<bool()> &emptyRef = empty;
+    rigtorp::Function<bool()> emptyCopy(emptyRef);
+    rigtorp::Function<bool()> emptyMove(std::move(empty));
     check(!emptyCopy && !emptyMove);
     original = emptyRef;
     check(!original);
@@ -99,8 +130,8 @@ int main() {
     } catch (const std::bad_function_call &) {}
   }
   check(Callable::alive == 0);
-  Function<int()> first([] { return 1; });
-  Function<int()> second([] { return 2; });
+  rigtorp::Function<int()> first([] { return 1; });
+  rigtorp::Function<int()> second([] { return 2; });
   first.swap(second);
   check(first() == 2 && second() == 1);
   first = second;
@@ -109,15 +140,15 @@ int main() {
   check(first() == 1 && !second);
   int calls = 0;
   auto callback = [&calls] { return ++calls; };
-  Function<int()> reference(std::ref(callback));
+  rigtorp::Function<int()> reference(std::ref(callback));
   first = std::ref(callback);
   check(reference() == 1 && first() == 2 && calls == 2);
   CopyOnly callable;
-  Function<int()> copyOnly(callable);
-  Function<int()> copyOnlyMoved(std::move(copyOnly));
+  rigtorp::Function<int()> copyOnly(callable);
+  rigtorp::Function<int()> copyOnlyMoved(std::move(copyOnly));
   check(copyOnlyMoved() == 7 && !copyOnly);
-  Function<int()> throwing{ThrowingCopy{}};
-  Function<int()> destination([] { return 9; });
+  rigtorp::Function<int()> throwing{ThrowingCopy{}};
+  rigtorp::Function<int()> destination([] { return 9; });
   ThrowingCopy::fail = true;
   auto *sameThrowing = &throwing;
   throwing = *sameThrowing;
@@ -125,12 +156,12 @@ int main() {
   throwing.swap(*sameThrowing);
   check(throwing() == 8);
   try {
-    destination = static_cast<const Function<int()> &>(throwing);
+    destination = static_cast<const rigtorp::Function<int()> &>(throwing);
     std::abort();
   } catch (const std::runtime_error &) {}
   check(destination() == 9 && throwing() == 8);
   try {
-    Function<int()> moved(std::move(throwing));
+    rigtorp::Function<int()> moved(std::move(throwing));
     std::abort();
   } catch (const std::runtime_error &) {}
   check(throwing() == 8);
@@ -145,7 +176,7 @@ int main() {
     CheckedCopy::copiesBeforeThrow = -1;
     {
       CheckedCopy callable;
-      Function<bool()> left(callable), right(callable);
+      rigtorp::Function<bool()> left(callable), right(callable);
       CheckedCopy::copiesBeforeThrow = stage;
       try {
         left.swap(right);

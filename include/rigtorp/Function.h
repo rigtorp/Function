@@ -3,14 +3,17 @@
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
-#include <memory>
+#include <new>
 #include <type_traits>
 #include <utility>
 
-template <class, size_t MaxSize = 1024> class Function;
+namespace rigtorp {
 
-template <class R, class... Args, size_t MaxSize> class Function<R(Args...), MaxSize> {
+template <class, std::size_t MaxSize = 1024> class Function;
+
+template <class R, class... Args, std::size_t MaxSize> class Function<R(Args...), MaxSize> {
 public:
   Function() noexcept {}
 
@@ -31,8 +34,11 @@ public:
                                                   Function>::value, int>::type = 0>
   Function(F &&f) {
     using f_type = typename std::decay<F>::type;
-    static_assert(alignof(f_type) <= alignof(Storage), "invalid alignment");
-    static_assert(sizeof(f_type) <= sizeof(Storage), "storage too small");
+    static_assert(alignof(f_type) <= StorageAlignment, "invalid alignment");
+    static_assert(sizeof(f_type) <= StorageSize, "storage too small");
+    if (isNull(f, std::is_pointer<f_type>{})) {
+      return;
+    }
     new (&data) f_type(std::forward<F>(f));
     invoker = &invoke<f_type>;
     manager = &manage<f_type>;
@@ -104,7 +110,19 @@ private:
 
   using Invoker = R (*)(void *, Args &&...);
   using Manager = void (*)(void *, const void *, Operation);
-  using Storage = typename std::aligned_storage<MaxSize - sizeof(Invoker) - sizeof(Manager), 8>::type;
+  static constexpr std::size_t StorageAlignment = 8;
+  static constexpr std::size_t Overhead = sizeof(Invoker) + sizeof(Manager);
+  static_assert(MaxSize > Overhead, "MaxSize must leave room for a callable after the function pointers");
+  // Guard the subtraction and array bound even when the assertion fails.
+  static constexpr std::size_t StorageSize = MaxSize > Overhead ? MaxSize - Overhead : 1;
+
+  template <typename F> static bool isNull(const F &f, std::true_type) noexcept {
+    return f == nullptr;
+  }
+
+  template <typename F> static bool isNull(const F &, std::false_type) noexcept {
+    return false;
+  }
 
   template <typename F>
   static R invoke(void *data, Args &&... args) {
@@ -138,7 +156,9 @@ private:
     }
   }
 
-  Storage data;
+  alignas(StorageAlignment) unsigned char data[StorageSize];
   Invoker invoker = nullptr;
   Manager manager = nullptr;
 };
+
+} // namespace rigtorp
