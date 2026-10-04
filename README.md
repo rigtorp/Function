@@ -57,21 +57,36 @@ C++11; it does not impose benchmark compiler flags on consumers.
 
 ## Benchmark
 
-*Function.h* is quite a lot faster than *std::function* to
- construct. Invocation overhead is the same for both.
+The dependency-free benchmark uses `std::chrono::steady_clock` and reports
+fractional nanoseconds per operation. Build and run it in Release mode:
 
-Compiled with `gcc -O3 -fno-devirtualize` (gcc 5.2).
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DFUNCTION_BUILD_BENCHMARKS=ON
+cmake --build build --target benchmark
+./build/benchmark
+```
+
+Sample results measured on 2026-10-04 on an **AMD Ryzen 7 8745HS w/ Radeon
+780M Graphics**, using **GCC 16.2.1** on Linux x86-64, compiled with
+`-O3 -DNDEBUG -std=c++11 -fno-devirtualize`. Values below are the median of
+five runs, each with 100,000,000 iterations per case, pinned to logical CPU 0
+using `taskset -c 0 ./build/benchmark`:
 
 ```
 construction overhead
-  std::function: 42ns/op
-  Function:      4ns/op
+  std::function: 9.05ns/op
+  Function:     0.11ns/op
   
 invocation overhead:
-  std::function: 2ns/op
-  Function:      2ns/op
-  virtual:       2ns/op
+  std::function: 1.11ns/op
+  Function:     1.10ns/op
+  virtual:      1.10ns/op
 ```
+
+The construction case includes construction, invocation, and destruction.
+The compiler can simplify these loops, especially the inline-storage case;
+these measurements describe this benchmark rather than isolated constructor
+costs. Results depend on the compiler, CPU, and system load.
 
 ## License
 

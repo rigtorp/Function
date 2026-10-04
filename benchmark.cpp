@@ -2,12 +2,15 @@
 
 #include "Function.h"
 #include <chrono>
+#include <iomanip>
 #include <iostream>
 
-int main(int argc, char *argv[]) {
+int main() {
   constexpr size_t count = 100000000;
 
   using namespace std::chrono;
+  using Nanoseconds = std::chrono::duration<double, std::nano>;
+  std::cout << std::fixed << std::setprecision(2);
 
   volatile size_t state = 0;
   struct State {
@@ -18,56 +21,56 @@ int main(int argc, char *argv[]) {
   std::cout << "construction overhead" << std::endl;
 
   {
-    auto start = high_resolution_clock::now();
+    auto start = steady_clock::now();
     for (size_t i = 0; i < count; ++i) {
       std::function<void()> stdfun = [&state, state2, i]() { state = i; };
       stdfun();
     }
-    auto stop = high_resolution_clock::now();
+    auto stop = steady_clock::now();
     auto duration = stop - start;
     std::cout << "std::function: "
-              << duration_cast<nanoseconds>(duration).count() / count << "ns/op"
+              << duration_cast<Nanoseconds>(duration).count() / count << "ns/op"
               << std::endl;
   }
 
   {
-    auto start = high_resolution_clock::now();
+    auto start = steady_clock::now();
     for (size_t i = 0; i < count; ++i) {
       Function<void()> fun = [&state, state2, i]() { state = i; };
       fun();
     }
-    auto stop = high_resolution_clock::now();
+    auto stop = steady_clock::now();
     auto duration = stop - start;
     std::cout << "Function: "
-              << duration_cast<nanoseconds>(duration).count() / count << "ns/op"
+              << duration_cast<Nanoseconds>(duration).count() / count << "ns/op"
               << std::endl;
   }
 
-  std::cout << "invokation overhead" << std::endl;
+  std::cout << "invocation overhead" << std::endl;
 
   {
     std::function<void(size_t)> stdfun([&state](size_t i) { state = i; });
-    auto start = high_resolution_clock::now();
+    auto start = steady_clock::now();
     for (size_t i = 0; i < count; ++i) {
       stdfun(i);
     }
-    auto stop = high_resolution_clock::now();
+    auto stop = steady_clock::now();
     auto duration = stop - start;
     std::cout << "std::function: "
-              << duration_cast<nanoseconds>(duration).count() / count << "ns/op"
+              << duration_cast<Nanoseconds>(duration).count() / count << "ns/op"
               << std::endl;
   }
 
   {
     Function<void(size_t)> fun([&state](size_t i) { state = i; });
-    auto start = high_resolution_clock::now();
+    auto start = steady_clock::now();
     for (size_t i = 0; i < count; ++i) {
       fun(i);
     }
-    auto stop = high_resolution_clock::now();
+    auto stop = steady_clock::now();
     auto duration = stop - start;
     std::cout << "Function: "
-              << duration_cast<nanoseconds>(duration).count() / count << "ns/op"
+              << duration_cast<Nanoseconds>(duration).count() / count << "ns/op"
               << std::endl;
   }
 
@@ -81,15 +84,15 @@ int main(int argc, char *argv[]) {
       volatile size_t state = 0;
     };
     Impl impl;
-    auto start = high_resolution_clock::now();
+    auto start = steady_clock::now();
     for (size_t i = 0; i < count; ++i) {
       Fun *fun = &impl;
       fun->fun(i);
     }
-    auto stop = high_resolution_clock::now();
+    auto stop = steady_clock::now();
     auto duration = stop - start;
     std::cout << "virtual: "
-              << duration_cast<nanoseconds>(duration).count() / count << "ns/op"
+              << duration_cast<Nanoseconds>(duration).count() / count << "ns/op"
               << std::endl;
   }
 
