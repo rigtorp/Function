@@ -26,6 +26,8 @@ SOFTWARE.
 
 #include <functional>
 #include <memory>
+#include <type_traits>
+#include <utility>
 
 template <class, size_t MaxSize = 1024> class Function;
 
@@ -37,15 +39,18 @@ public:
 
   Function(const Function &other) {
     if (other) {
-      other.manager(data, other.data, Operation::Clone);
+      other.manager(&data, &other.data, Operation::Clone);
       invoker = other.invoker;
       manager = other.manager;
     }
   }
 
-  Function(Function &&other) { other.swap(*this); }
+  Function(Function &&other) { moveFrom(other); }
 
-  template <class F> Function(F &&f) {
+  template <class F,
+            typename std::enable_if<!std::is_same<typename std::decay<F>::type,
+                                                  Function>::value, int>::type = 0>
+  Function(F &&f) {
     using f_type = typename std::decay<F>::type;
     static_assert(alignof(f_type) <= alignof(Storage), "invalid alignment");
     static_assert(sizeof(f_type) <= sizeof(Storage), "storage too small");
@@ -61,12 +66,18 @@ public:
   }
 
   Function &operator=(const Function &other) {
-    Function(other).swap(*this);
+    if (this != &other) {
+      Function copy(other);
+      *this = std::move(copy);
+    }
     return *this;
   }
 
   Function &operator=(Function &&other) {
-    Function(std::move(other)).swap(*this);
+    if (this != &other) {
+      *this = nullptr;
+      moveFrom(other);
+    }
     return *this;
   }
 
@@ -79,7 +90,10 @@ public:
     return *this;
   }
 
-  template <typename F> Function &operator=(F &&f) {
+  template <typename F,
+            typename std::enable_if<!std::is_same<typename std::decay<F>::type,
+                                                  Function>::value, int>::type = 0>
+  Function &operator=(F &&f) {
     Function(std::forward<F>(f)).swap(*this);
     return *this;
   }
@@ -90,9 +104,11 @@ public:
   }
 
   void swap(Function &other) {
-    std::swap(data, other.data);
-    std::swap(manager, other.manager);
-    std::swap(invoker, other.invoker);
+    if (this != &other) {
+      Function temp(std::move(other));
+      other = std::move(*this);
+      *this = std::move(temp);
+    }
   }
 
   explicit operator bool() const noexcept { return !!manager; }
@@ -105,10 +121,10 @@ public:
   }
 
 private:
-  enum class Operation { Clone, Destroy };
+  enum class Operation { Clone, Move, Destroy };
 
   using Invoker = R (*)(void *, Args &&...);
-  using Manager = void (*)(void *, void *, Operation);
+  using Manager = void (*)(void *, const void *, Operation);
   using Storage = typename std::aligned_storage<MaxSize - sizeof(Invoker) - sizeof(Manager), 8>::type;
 
   template <typename F>
@@ -118,14 +134,28 @@ private:
   }
 
   template <typename F>
-  static void manage(void *dest, void *src, Operation op) {
+  static void manage(void *dest, const void *src, Operation op) {
     switch (op) {
     case Operation::Clone:
-      new (dest) F(*static_cast<F *>(src));
+      new (dest) F(*static_cast<const F *>(src));
+      break;
+    case Operation::Move:
+      // Move is only requested for a non-const source. Copy-only callables
+      // and callables with throwing moves can use their copy constructor.
+      new (dest) F(std::move_if_noexcept(*static_cast<F *>(const_cast<void *>(src))));
       break;
     case Operation::Destroy:
       static_cast<F *>(dest)->~F();
       break;
+    }
+  }
+
+  void moveFrom(Function &other) {
+    if (other) {
+      other.manager(&data, &other.data, Operation::Move);
+      invoker = other.invoker;
+      manager = other.manager;
+      other = nullptr;
     }
   }
 
