@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "Function.h"
 #include <cstdlib>
 #include <stdexcept>
