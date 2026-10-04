@@ -1,2 +1,6 @@
 *~
-build
+/build*/
+/cmake-build-*/
+/.idea/
+/.dir-locals.el
+/.projectile
