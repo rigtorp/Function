@@ -1,93 +1,50 @@
-# Function.h
+# rigtorp::Function
 
-Heap allocation free version of C++11 *std::function*.
+A header-only C++11 alternative to `std::function` that stores callables
+inline. Captured objects may still allocate memory.
 
-Function.h stores the closure in an internal buffer instead of heap
-allocated memory. This is useful for low latency agent and thread pool
-systems. Please note that the captured values can perform allocations,
-for example *std::string*.
+```cpp
+#include <rigtorp/Function.h>
 
-Copying invokes the stored callable's copy constructor. Moving and swapping
-invoke its move constructor when it is non-throwing, otherwise its copy
-constructor, and destroy the source object after successful transfer. A
-successfully moved-from `Function` is empty. Copy-only callables are supported.
-Callable destructors must not throw.
+rigtorp::Function<int()> f([] { return 42; });
+int result = f();
+```
 
-If a callable constructor throws during move assignment or swap, the affected
-`Function` objects remain valid but may be empty. Copy assignment preserves
-the destination if the initial copy fails; a failure during the subsequent
-transfer can leave the destination empty.
+The default capacity is 1024 bytes. Set it with `Function<Signature, MaxSize>`.
+Callables must fit and require at most 8-byte alignment. Null function pointers
+produce an empty wrapper; calling an empty wrapper throws `std::bad_function_call`.
 
-Build the example, benchmark, and regression tests with CMake 3.20 or newer
-and a C++11 compiler:
+## Build
+
+Requires CMake 3.20+ and a C++11 compiler.
 
 ```sh
-cmake -S . -B build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-`FUNCTION_BUILD_EXAMPLES`, `FUNCTION_BUILD_BENCHMARKS`, and
-`FUNCTION_BUILD_TESTS` control the optional executables. `BUILD_TESTING=OFF`
-also disables the tests. These executables and installation rules default
-to off when Function is included in another project.
-
-To use a checkout in another CMake project:
+## CMake
 
 ```cmake
 add_subdirectory(path/to/Function)
 target_link_libraries(your_target PRIVATE Function::Function)
 ```
 
-Or install the header and CMake package to a prefix:
-
-```sh
-cmake --install build --prefix /path/to/prefix
-```
-
-Configure a consumer with `-DCMAKE_PREFIX_PATH=/path/to/prefix` and use:
-
-```cmake
-find_package(Function CONFIG REQUIRED)
-target_link_libraries(your_target PRIVATE Function::Function)
-```
-
-`FUNCTION_INSTALL=OFF` disables installation rules. The library requires
-C++11; it does not impose benchmark compiler flags on consumers.
+For an installed package, use `find_package(Function CONFIG REQUIRED)`.
 
 ## Benchmark
 
-The dependency-free benchmark uses `std::chrono::steady_clock` and reports
-fractional nanoseconds per operation. Build and run it in Release mode:
+Run `./build/benchmark`. It uses `std::chrono::steady_clock`.
 
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DFUNCTION_BUILD_BENCHMARKS=ON
-cmake --build build --target benchmark
-./build/benchmark
-```
+Sample: AMD Ryzen 7 8745HS w/ Radeon 780M Graphics, Linux x86-64,
+GCC 16.2.1 (`-O3 -DNDEBUG -std=c++11 -fno-devirtualize`), 2026-10-04.
+Medians of five runs, 100 million iterations per case, pinned to logical CPU 0.
 
-Sample results measured on 2026-10-04 on an **AMD Ryzen 7 8745HS w/ Radeon
-780M Graphics**, using **GCC 16.2.1** on Linux x86-64, compiled with
-`-O3 -DNDEBUG -std=c++11 -fno-devirtualize`. Values below are the median of
-five runs, each with 100,000,000 iterations per case, pinned to logical CPU 0
-using `taskset -c 0 ./build/benchmark`:
+| ns/op | std::function | rigtorp::Function | Virtual |
+| --- | ---: | ---: | ---: |
+| Construction | 9.05 | 0.11 | — |
+| Invocation | 1.11 | 1.10 | 1.10 |
 
-```
-construction overhead
-  std::function: 9.05ns/op
-  Function:     0.11ns/op
-  
-invocation overhead:
-  std::function: 1.11ns/op
-  Function:     1.10ns/op
-  virtual:      1.10ns/op
-```
-
-The construction case includes construction, invocation, and destruction.
-The compiler can simplify these loops, especially the inline-storage case;
-these measurements describe this benchmark rather than isolated constructor
-costs. Results depend on the compiler, CPU, and system load.
-
-## License
-
-MIT; see [LICENSE](LICENSE). Source files use SPDX license identifiers.
+Construction includes invocation and destruction. Results reflect compiler
+optimizations and depend on the system.
